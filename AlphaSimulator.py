@@ -77,10 +77,15 @@ class AlphaSimulator:
                     row = next(reader)
                     if 'settings' in row:
                         if isinstance(row['settings'], str):
+                            # 尝试先解析JSON格式 (新格式: {"key": value})
                             try:
-                                row['settings'] = ast.literal_eval(row['settings'])
-                            except (ValueError, SyntaxError):
-                                print(f"Error evaluating settings: {row['settings']}")
+                                row['settings'] = json.loads(row['settings'])
+                            except (json.JSONDecodeError, ValueError):
+                                # 回退到Python字典格式 (旧格式: {'key': value})
+                                try:
+                                    row['settings'] = ast.literal_eval(row['settings'])
+                                except (ValueError, SyntaxError):
+                                    print(f"Error evaluating settings: {row['settings']}")
                         elif isinstance(row['settings'], dict):
                             pass
                         else:
@@ -212,10 +217,11 @@ if __name__ == "__main__":
     # Extract username and password from the list
     username, password = credentials
 
-    alpha_list_file_path = 'alpha_list_pending_simulated.csv'   # replace with your actual file path
+    alpha_list_file_path = 'alpha_list_ind_region.csv'   # replace with your actual file path
 
     simulator = AlphaSimulator(max_concurrent=3, username=username, password=password, alpha_list_file_path=alpha_list_file_path,batch_number_for_every_queue=20)
 
     simulator.manage_simulations()
+
 
 

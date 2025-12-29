@@ -163,7 +163,7 @@ alpha_fail_attempt_tolerance = 15 # 每个alpha允许的最大失败尝试次数
 
 # 从第0个元素开始迭代回测alpha_list
 # for index in range(0, len(alpha_list)):
-for index in range(19976, len(alpha_list)):
+for index in range(43251, len(alpha_list)):
     alpha = alpha_list[index]
     print(f"{index}: {alpha['regular']}")
     logging.info(f"{index}: {alpha['regular']}")

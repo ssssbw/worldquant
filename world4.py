@@ -1,145 +1,151 @@
-# 登录
-import requests
-import json
-from os.path import expanduser
-from requests.auth import HTTPBasicAuth
+# IND Region Alpha 生成器 (快速版)
+# 🎉 IND Region Theme: 29 Dec'25 - 4 Jan'26 (1周)
+# Multiplier: 2X for regular alphas
 
+import random
+import csv
+import os
+import json  # 添加json模块用于正确序列化
 
-def sign_in():
-    # Load credentials # 加载凭证
-    with open(expanduser('brain_credentials.txt')) as f:
-        credentials = json.load(f)
+# IND Region 配置
+IND_CONFIG = {
+    'region': 'IND',
+    'universe': 'TOP2000',
+    'delay': 1,
+    'multiplier': '2X',
+    'duration': '29 Dec\'25 - 4 Jan\'26',
+    'allowed_pv1_group_fields': ['country', 'exchange', 'market', 'sector', 'industry', 'subindustry']
+}
 
-    # Extract username and password from the list # 从列表中提取用户名和密码
-    username, password = credentials
+# Macro 和 Model 字段列表
+MACRO_FIELDS = [
+    'gdp', 'inflation', 'interest_rate', 'exchange_rate', 'cpi', 'ppi',
+    'unemployment_rate', 'industrial_production', 'retail_sales', 'consumer_confidence',
+    'housing_starts', 'trade_balance', 'current_account', 'government_debt',
+    'money_supply', 'current_gdp', 'gdp_growth', 'core_inflation'
+]
 
-    # Create a session object # 创建会话对象
-    sess = requests.Session()
+MODEL_FIELDS = [
+    f'model{i}' for i in range(1, 51)
+] + [f'model{i}' for i in range(60, 71)]
 
-    # Set up basic authentication # 设置基本身份验证
-    sess.auth = HTTPBasicAuth(username, password)
+# 允许的分组字段
+groups = IND_CONFIG['allowed_pv1_group_fields']
 
-    # Send a POST request to the API for authentication # 向API发送POST请求进行身份验证
-    response = sess.post('https://api.worldquantbrain.com/authentication')
+# 时间窗口
+time_windows = {
+    'very_short': [3, 5, 7],
+    'short': [10, 15, 20],
+    'medium': [30, 40, 60],
+    'long': [90, 120, 180]
+}
 
-    # Print response status and content for debugging # 打印响应状态和内容以调试
-    print(response.status_code)
-    print(response.json())
-    return sess
+# 快速Alpha模板
+quick_templates = [
+    # Model因子模板
+    "ts_rank({field}, {window})",
+    "group_neutralize(rank({field}), {group})",
+    "ts_zscore({field}, {window})",
+    "group_rank(rank({field}), {group})",
+    "ts_rank(ts_delta({field}, {delay}), {window})",
+    "zscore({field})",
+    "ts_delta({field}, {delay})",
+    "ts_mean({field}, {window})",
+    # Macro因子模板
+    "ts_rank(ts_delta({macro_field}, 1), {window})",
+    "ts_decay_linear(rank({macro_field}), {window})",
+    "ts_delta(ts_mean({macro_field}, {window}), 1)",
+    "group_neutralize(ts_delta({macro_field}, {delay}) - ts_mean(ts_delta({macro_field}, 1), {window}), {group})",
+    "-1 * ts_zscore({macro_field}, {window})",
+    "ts_rank({macro_field} / ts_mean({macro_field}, {window}) - 1, {window}) * -1",
+    "rank({macro_field} - ts_mean({macro_field}, {window})) / ts_std_dev({macro_field}, {window})",
+    "ts_std_dev({macro_field}, {window})",
+    "ts_scale({macro_field}, {window}) * ts_rank({macro_field}, {window})",
+    # 跨资产因子
+    "ts_corr({field1}, {field2}, {window})",
+    "ts_cov({field1}, {field2}, {window})",
+    "group_neutralize({field1} / {field2}, {group})",
+    # 复合因子
+    "group_neutralize({factor1} + {factor2}, {group})",
+    "ts_mean(rank({field1}) * ts_rank({field2}, {window}), {window})",
+]
 
+def generate_quick_alphas(target_count=5000):
+    """快速生成Alpha因子"""
+    alpha_expressions = []
+    seen = set()
+    
+    all_fields = MACRO_FIELDS + MODEL_FIELDS
+    delays = [1, 2, 3, 5]
+    
+    while len(alpha_expressions) < target_count:
+        template = random.choice(quick_templates)
+        
+        # 随机选择参数
+        field = random.choice(all_fields)
+        macro_field = random.choice(MACRO_FIELDS)
+        field1 = random.choice(MODEL_FIELDS)
+        field2 = random.choice(MACRO_FIELDS)
+        window = random.choice(time_windows['medium'])
+        delay = random.choice(delays)
+        group = random.choice(groups)
+        
+        # 随机选择因子组件
+        factor1 = f"ts_rank({random.choice(MODEL_FIELDS)}, 30)"
+        factor2 = f"ts_rank({random.choice(MACRO_FIELDS)}, 30)"
+        
+        try:
+            alpha_expr = template.format(
+                field=field,
+                macro_field=macro_field,
+                field1=field1,
+                field2=field2,
+                window=window,
+                delay=delay,
+                group=group,
+                factor1=factor1,
+                factor2=factor2
+            )
+            
+            # 简单去重
+            if alpha_expr not in seen:
+                seen.add(alpha_expr)
+                alpha_expressions.append(alpha_expr)
+                
+        except (KeyError, ValueError):
+            continue
+        
+        # 每500个输出一次进度
+        if len(alpha_expressions) % 500 == 0:
+            print(f"已生成 {len(alpha_expressions)} / {target_count} 个因子")
+    
+    return alpha_expressions
 
-sess = sign_in()
+# 生成Alpha列表
+print("="*60)
+print("🎉 IND Region Alpha 生成器 (快速版)")
+print("="*60)
+print(f"📅 时间周期: {IND_CONFIG['duration']}")
+print(f"💰 乘数: {IND_CONFIG['multiplier']}")
+print(f"🌍 区域: {IND_CONFIG['region']}")
+print(f"📊 目标因子数: 5000")
+print("="*60)
 
+alpha_expressions = generate_quick_alphas(5000)
+print(f"\n✅ 成功生成 {len(alpha_expressions)} 个Alpha因子")
 
-# 获取数据集ID为fundamental6（Company Fundamental Data for Equity）下的所有数据字段
-### Get Data_fields like Data Explorer 获取所有满足条件的数据字段及其ID
-def get_datafields(
-        s,
-        searchScope,
-        dataset_id: str = '',
-        search: str = ''
-):
-    import pandas as pd
-    instrument_type = searchScope['instrumentType']
-    region = searchScope['region']
-    delay = searchScope['delay']
-    universe = searchScope['universe']
-
-    if len(search) == 0:
-        url_template = "https://api.worldquantbrain.com/data-fields?" + \
-                       f"&instrumentType={instrument_type}" + \
-                       f"&region={region}&delay={str(delay)}&universe={universe}&dataset.id={dataset_id}&limit=50" + \
-                       "&offset={x}"
-        count = s.get(url_template.format(x=0)).json()['count']
-    else:
-        url_template = "https://api.worldquantbrain.com/data-fields?" + \
-                       f"&instrumentType={instrument_type}" + \
-                       f"&region={region}&delay={str(delay)}&universe={universe}&limit=50" + \
-                       f"&search={search}" + \
-                       "&offset={x}"
-        count = 100
-
-    datafields_list = []
-    for x in range(0, count, 50):
-        datafields = s.get(url_template.format(x=x))
-        datafields_list.append(datafields.json()['results'])
-
-    datafields_list_flat = [item for sublist in datafields_list for item in sublist]
-
-    datafields_df = pd.DataFrame(datafields_list_flat)
-    return datafields_df
-
-
-# 定义搜索范围
-searchScope = {'region': 'USA', 'delay': '1', 'universe': 'TOP3000', 'instrumentType': 'EQUITY'}
-# 从数据集中获取数据字段
-fnd6 = get_datafields(s=sess, searchScope=searchScope, dataset_id='fundamental6')
-# 过滤类型为 "MATRIX" 的数据字段
-fnd6 = fnd6[fnd6['type'] == "MATRIX"]
-# 提取数据字段的ID并转换为列表
-datafields_list_fnd6 = fnd6['id'].values
-# 输出数据字段的ID列表
-print(datafields_list_fnd6)
-print(len(datafields_list_fnd6))
-
-# ts_zscore(rank(ebitda)/rank(enterprise_value),10)
-# group_neutralize(ts_zscore(rank(ebitda)/rank(enterprise_value),10), industry)
-# 将datafield和operator替换到Alpha模板(框架)中批量生成Alpha
-# group_neutralize(ts_zscore(rank({fundamental model data})/rank(enterprise_value),10),industry)
-# 模板
-# <group_compare_op>(<ts_compare_op>(<op>(<company_fundamentals>)/<op>(enterprise_value),<days>),<group>)
-
-# 定义分组比较操作符
-group_compare_op = ['group_rank', 'group_neutralize']  # 分组比较操作符列表
-# 定义时间序列比较操作符
-ts_compare_op = ['ts_rank', 'ts_mean',  'ts_decay_linear', 'ts_zscore']  # 时间序列比较操作符列表
-# 定义Cross Sectional操作符
-cross_sectional_op = ['rank', 'zscore']
-# 定义公司基本面数据的字段列表
-company_fundamentals = datafields_list_fnd6
-# 定义时间周期列表
-days = [5, 10, 20, 40]
-# 定义分组依据列表
-group = ['industry', 'subindustry', 'sector']
-# 初始化alpha表达式列表
-alpha_expressions = []
-# 遍历分组比较操作符
-for gco in group_compare_op:
-    # 遍历时间序列比较操作符
-    for tco in ts_compare_op:
-        # 遍历Cross Sectional操作符
-        for cso in cross_sectional_op:
-            # 遍历公司基本面数据的字段
-            for cf in company_fundamentals:
-                # 遍历时间周期
-                for d in days:
-                    # 遍历分组依据
-                    for grp in group:
-                        # 生成alpha表达式并添加到列表中
-                        alpha_expressions.append(f"{gco}({tco}({cso}({cf})/{cso}(enterprise_value), {d}), {grp})")
-
-# 输出生成的alpha表达式总数 # 打印或返回结果字符串列表
-print(f"there are total {len(alpha_expressions)} alpha expressions")
-
-# 打印结果
-print(alpha_expressions[:5])
-print(len(alpha_expressions))
-
-# 将datafield替换到Alpha模板(框架)中group_rank({fundamental model data}/cap,subindustry)批量生成Alpha
+# 封装Alpha表达式
 alpha_list = []
-
-print("将alpha表达式与setting封装")
-for index, alpha_expression in enumerate(alpha_expressions, start=1):
-    print(f"正在循环第 {index} 个元素,组装alpha表达式: {alpha_expression}")
+for alpha_expression in alpha_expressions:
     simulation_data = {
         "type": "REGULAR",
         "settings": {
             "instrumentType": "EQUITY",
-            "region": "USA",
-            "universe": "TOP3000",
-            "delay": 1,
-            "decay": 6,
-            "neutralization": "SUBINDUSTRY",
+            "region": IND_CONFIG['region'],
+            "universe": IND_CONFIG['universe'],
+            "delay": IND_CONFIG['delay'],
+            "decay": random.choice([4, 5, 6, 7, 8]),
+            "neutralization": random.choice(IND_CONFIG['allowed_pv1_group_fields']),
             "truncation": 0.01,
             "pasteurization": "ON",
             "unitHandling": "VERIFY",
@@ -150,79 +156,53 @@ for index, alpha_expression in enumerate(alpha_expressions, start=1):
         "regular": alpha_expression
     }
     alpha_list.append(simulation_data)
-print(f"there are {len(alpha_list)} Alphas to simulate")
 
-# 输出
-print(alpha_list[0])
+print(f"✅ 已封装 {len(alpha_list)} 个待回测的Alpha")
 
+# 显示示例
+if alpha_list:
+    print("\n📝 Alpha示例（前3个）：")
+    for i, alpha in enumerate(alpha_list[:3], start=1):
+        print(f"\n{i}. 类型: {alpha['type']}")
+        print(f"   区域: {alpha['settings']['region']}")
+        print(f"   Universe: {alpha['settings']['universe']}")
+        print(f"   分组中性化: {alpha['settings']['neutralization']}")
+        print(f"   表达式: {alpha['regular'][:100]}...")
 
-# 在使用该代码前，需将Course3的Alpha列表里的所有alpha存入csv文件。headers of the csv：type,settings,regular
-import csv
-import os
+# 保存到CSV文件 - 使用JSON格式保存settings
+alpha_list_file_path = 'alpha_list_ind_region.csv'
 
-# Check if the file exists
-alpha_list_file_path = 'alpha_list_pending_simulated.csv'  # replace with your actual file path
-file_exists = os.path.isfile(alpha_list_file_path)
+# 将settings转换为JSON字符串
+alpha_list_for_csv = []
+for alpha in alpha_list:
+    alpha_copy = alpha.copy()
+    alpha_copy['settings'] = json.dumps(alpha['settings'])  # 转换为JSON字符串
+    alpha_list_for_csv.append(alpha_copy)
 
-# Write the list of dictionaries to a CSV file, when append keep the original header
-with open(alpha_list_file_path, 'a', newline='') as output_file:
+with open(alpha_list_file_path, 'w', newline='') as output_file:
     dict_writer = csv.DictWriter(output_file, fieldnames=['type', 'settings', 'regular'])
-    # If the file does not exist, write the header
-    if not file_exists:
-        dict_writer.writeheader()
+    dict_writer.writeheader()
+    dict_writer.writerows(alpha_list_for_csv)
 
-    dict_writer.writerows(alpha_list)
+print(f"\n✅ Alpha列表已保存到 {alpha_list_file_path}")
+print(f"📊 总计: {len(alpha_list)} 个Alpha因子")
 
-print("Alpha list has been saved to alpha_list_pending_simulated.csv")
+# 统计报告
+print("\n" + "="*60)
+print("📈 IND Region Alpha 生成统计报告")
+print("="*60)
 
-# 将Alpha一个一个发送至服务器进行回测,并检查是否断线，如断线则重连
-##设置log
-import logging
-# Configure the logging setting
-logging.basicConfig(filename='simulation.log', level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s')
+model_count = sum(1 for a in alpha_list if any(f'model{i}' in a['regular'] for i in range(1, 71)))
+macro_count = len(alpha_list) - model_count
+
+print(f"\nModel类别因子: {model_count} 个 ({model_count/len(alpha_list)*100:.1f}%)")
+print(f"Macro类别因子: {macro_count} 个 ({macro_count/len(alpha_list)*100:.1f}%)")
+
+group_neutral_count = sum(1 for a in alpha_list if 'group_neutralize' in a['regular'] or 'group_rank' in a['regular'])
+print(f"\n使用分组中性化的因子: {group_neutral_count} 个 ({group_neutral_count/len(alpha_list)*100:.1f}%)")
+
+print("\n" + "="*60)
+print("🎯 IND Region Alpha 生成完成！")
+print("="*60)
 
 
-from time import sleep
-import logging
-
-
-alpha_fail_attempt_tolerance = 15 # 每个alpha允许的最大失败尝试次数
-is_submit = False  # 标志变量，用于控制是否提交alpha
-if is_submit:
-    # 从第0个元素开始迭代回测alpha_list
-    for index in range(0, len(alpha_list)):
-        alpha = alpha_list[index]
-        print(f"{index}: {alpha['regular']}")
-        logging.info(f"{index}: {alpha['regular']}")
-        keep_trying = True  # 控制while循环继续的标志
-        failure_count = 0  # 记录失败尝试次数的计数器
-
-        while keep_trying:
-            try:
-                # 尝试发送POST请求
-                sim_resp = sess.post(
-                    'https://api.worldquantbrain.com/simulations',
-                    json=alpha  # 将当前alpha（一个JSON）发送到服务器
-                )
-
-                # 从响应头中获取位置
-                sim_progress_url = sim_resp.headers['Location']
-                logging.info(f'Alpha location is: {sim_progress_url}')  # 记录位置
-                print(f'Alpha location is: {sim_progress_url}')  # 打印位置
-                keep_trying = False  # 成功获取位置，退出while循环
-
-            except Exception as e:
-                # 处理异常：记录错误，让程序休眠15秒后重试
-                logging.error(f"No Location, sleep 15 and retry, error message: {str(e)}")
-                print("No Location, sleep 15 and retry")
-                sleep(15)  # 休眠15秒后重试
-                failure_count += 1  # 增加失败尝试次数
-
-                # 检查失败尝试次数是否达到容忍上限
-                if failure_count >= alpha_fail_attempt_tolerance:
-                    sess = sign_in()  # 重新登录会话
-                    failure_count = 0  # 重置失败尝试次数
-                    logging.error(f"No location for too many times, move to next alpha {alpha['regular']}")  # 记录错误
-                    print(f"No location for too many times, move to next alpha {alpha['regular']}")  # 打印信息
-                    break  # 退出while循环，移动到for循环中的下一个alpha
